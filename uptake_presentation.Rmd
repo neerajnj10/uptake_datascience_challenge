@@ -1,0 +1,178 @@
+---
+title: "Predicting potential customers for marketing our policy"
+author: "Neeraj"
+date: "January 6, 2016"
+output:
+  slidy_presentation:
+    highlight: pygments
+  ioslides_presentation:
+    highlight: pygments
+---
+
+
+## Introduction:
+
+#### Motivation & Aim
+
+> The project aims towards understanding the granularities and implementation of two basic frameworks:
+
+
+- Profit aspect including optimization of `target marketing` and `market segmentation.` 
+
+A - We want to direct our marketing endeavours to particular group of people, while breaking and segmenting these people to smaller affective group, in our case those who respond *yes* to market campaign and agree to purchase the policy.
+
+
+- Business situations would include understanding whether our target group of customer are reliable and retainable in response to the product.
+
+B- we would want to see what are different aspects that need to considered while marketing our product and inroducing them in the market.
+
+
+## Overview of the process
+
+> The entire process is collaborative and follows the basic rule:
+
+#### CROSS-INDUSTRY STANDARD PROCESS
+
+![CRISP-DM](http://www.sv-europe.com/eu/wp-content/uploads/2013/12/newcrispdiagram.gif)
+
+
+- Understanding the **business requirements**
+- Understanding the **data**
+- **Preprocessing/cleaning** the data
+- **Modeling** the data
+- **Evaluating** the results
+- Finally developing **insights** and **recommendations.**
+
+> According to CRISP-DM, a given data mining project has a life cycle consisting of six phases and the phase sequence is adaptive (i.e. the next phase in the sequence depends on the outcomes associated with the previos phase.)
+
+## Business understanding
+
+We wants to determine the group of customers that would be willing to buy policy and would also provide profit in return of our marketing campaign. 
+We understand profit in this case as:
+A - The cost of marketing to a particular customer is $30. This cost is paid regardless of whether the customer responds to our marketing or not.
+
+B -  Only if a customer responds to our marketing, do we earn a profit.
+
+C -  Profit does NOT include the marketing cost. 
+
+D -  Total Profit = Average profit per responding Customer * Number of customers responding - Number of customers to whom you marketed * $30
+
+- what do we understand here? customers who respond yes are our **target** group of customers, and the source of profit.
+Those that respond **no** would not bring profit to us, and therefore would be responsible for incurring extra cost on market campaign. Learning about the group would significantly cut the cost of marketing and we would be willing to concentrate on the other profitable group.
+
+- However One thing to know is, not all that would respond yes, would bring a *positive* profit. As our data suggests, there have been cases where customers have agreed to purchasing the policy but has resulted in negative profit, i.e. loss.
+
+```{r, echo=FALSE}
+library(ggplot2)
+r <- read.csv("training.csv")
+ggplot(r, aes(x=profit)) + geom_histogram(binwidth=5) + facet_wrap(~responded)
+
+```
+
+## Lets learn about our data more and make some recommendations (business and technical aspects)
+
+- One crucial thing to notice here is our data has more information on customers that have responded against our marketing campaign and very few that have agreed don buying the policy. It would be interesting to inspect the attributes of both type or customers here, to even serve ourselves in exploring individual groups to target accordingly.
+
+
+```{r, echo=FALSE}
+# explaining Betting variables are not linearly correlated as was assumed from correlation plot above.
+ggplot(r, aes(responded)) + geom_bar(position= "stack")
+```
+
+
+- We have noticed few other variables that must be considered important while wanting to market the target group, one of the most important however is, **previous** (no. of contacts performed before this campaign and for this client), which has been confirmed by our model as well. 
+- Benfordd explains *What proportion of the data points start with 1? How about 2? Or 3 through to 9?* In our case, previous variable is a single digit. So when 70% of the contacts performed were 1 then customers responded with **yes**, and when around 87% of the contacts performed were 1, then customers responded with **no**, however we see when at least 24% of the contacts performed were 2 in number, then then it resulted in customer responding **yes** in comparison to only 12% approx in favor of **no**
+
+![benford](benford.png)
+
+
+
+- Another noticeable variable is **poutcome** which is outcome of the previous marketing campaign, which shows that for non-existent past campaign, it generally resulted in response from customer to be **no**, as no previous marketing would mean we did not learn about them before, and therefore did not customize our strategies. For those that resulted in success in past, 3/4th of that effort allowed and contributed towards respondants willing to purchase the product. This could give us indication, that continuous marketing and campaigning is a good contributor to our success and should be carried on.
+
+
+```{r, echo=FALSE}
+
+ds <- table(r$poutcome, r$responded)
+# Sort the entries.
+ord <- order(apply(ds, 1, sum), decreasing=TRUE)
+# Plot the data.
+mosaicplot(ds[ord,], main="Mosaic of poutcome by responded", color=colorspace::rainbow_hcl(3)[-1], cex=0.7,
+           xlab="poutcome", ylab="responded")
+```
+
+
+- This can be further confirmed from model, which was built upon the variables noted below, with their **importance** in prediction in decreasing order.
+
+![ADA-Model](ada.png)
+
+
+## Further Data Understanding (more visualizations!!)
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(r, aes(x = profession, fill = responded)) + geom_bar(position = "fill")
+```
+
+- largest proportion of **yes** from customer have come from students, that also means from target group could be young customers, wanting to purchase policies, for investment or other purposes, follwoed by **retired** group of profession, this gives us intersting insights that yes have come from either young students, or reired (two extremities, both not very active with respect to earning).
+
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(r, aes(x=pastEmail,y=profit)) + geom_point(position=position_jitter(w=0.1,h=0)) + 
+  geom_smooth() 
+```
+
+
+- last but very important variable we need to look at is, interaction of profit with pastEmail, that is follow up done with customers. It shows that on average if the follow up are done more than **once or twice**, then it would rovide good profit over marketing cost incurred in the process, i.e. a psotive and healthy profit. 
+
+## Notes about our model
+
+- any model that we end up utilizing must make sure that it meets the ends up. It should be adaptive and it should be very accurate, while at the same time flexible. 
+
+- Model process is  very important, as we try to dive deep with our data and finally work on number crunching and machine talking, to see if our knowledge base is rich enough to allow our machines to favor it. 
+
+- Virtually speaking, model building is like building house. You know your requirements, you have removed all tht you do not want, and all that is necessary, you want your designer to confirm that you have got everything it needs to build it. Once all reqirements are met, we would want prepare a structure before **actually** starting the infrastructure. Similar is with modeling, we gather the requirements, we train our final data, we evaluate our model based on several assumptions, some of them are ROC, Lift, Accuracy/Error matrix/confusion matrix etc. 
+
+
+> error percentage is only close to 0.095, and AUC score of 0.78. For AUC (Area under curve)it is satisfactory to know that more close to 1, better our model is.
+
+- How does our final prediction on whether from group of potential customer, how many are worth spending money on, or carrying out marketing for our product/policy, is shown below.
+
+![ROC-ADA](roc.png)
+
+```
+      custAge  profession  marital           schooling default housing loan  contact month
+1  0.111197018      admin.  married         high.school      no      no  yes cellular   sep
+2 -0.495101891    services  married         high.school      no      no   no cellular   sep
+3  1.113586570 blue-collar  married professional.course unknown     yes   no cellular   may
+4 -1.190357962      admin.   single   university.degree      no      no   no cellular   aug
+5 -0.007032999    services divorced         high.school      no     yes   no cellular   nov
+6  0.111197018     student   single         high.school      no     yes   no cellular   jul
+  day_of_week   campaign   previous    poutcome cons.price.idx cons.conf.idx  euribor3m   pmonths
+1         wed  0.3063469  1.6932199     failure      1.0760944     0.6454771 -1.5203064  0.194323
+2         tue  0.3063469  1.6932199     success     -2.0606935     2.3112118 -1.5506941 -5.146443
+3         thu -1.0653566  1.6932199     failure     -1.1810104    -1.2365869 -1.3633202  0.194323
+4         wed -1.0653566 -0.3478863 nonexistent     -0.2325832     0.9483379  0.7905849  0.194323
+5         tue -1.0653566 -0.3478863 nonexistent     -0.6532683    -0.3280043  0.2038253  0.194323
+6         thu -1.0653566 -0.3478863 nonexistent      0.5877933    -0.4794347  0.7860548  0.194323
+   pastEmail        id responded
+1  1.3307933 -2.210611        no
+2  1.3307933 -2.208995       yes
+3  1.3307933 -2.207615        no
+4 -0.2742447 -2.206369        no
+5 -0.2742447 -2.205214        no
+6 -0.2742447 -2.204128        no
+```
+
+
+## Final thoughts.
+
+- More data must be required, equally for customer responding yes as well as no, in our case it is skewed. 
+
+- We need to capitalize on our understanding of data and what our model has predicted, as target group of customer for future marketing purpose. The model is very adaptive(hence the name) and is able ot deal with skewness, hence very good accuracy (it is very good rate to trust the model with) Always remember- TRUST THE MODEL!
+
+- Keeping an open campaign and continuous follow up with clients is good approach ad must be made more aggressive.
+
+- Previous campaigns play extremely good role in our model, and must be seriously taken in to consideration.
+
+- Few variables are open to further learning, such as profession, and this can be greatly utilized in learning and segementing at even more ground levels.
+
+
