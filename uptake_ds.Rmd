@@ -1,0 +1,871 @@
+---
+title: "uptake_datascience"
+author: "Neeraj"
+date: "January 6, 2016"
+output: html_document
+---
+
+
+### Exploring, cleaning and understanding the data.
+
+
+=======================================================
+=======================================================
+
+
+
+
+```{r}
+require(Hmisc, quietly=TRUE)
+require(corrplot, quietly=TRUE)
+library(ggplot2)
+uptrain <- read.csv("training.csv")
+str(uptrain)
+
+#general summary of the data.
+summary(uptrain)
+
+# Generate a description of the dataset.
+describe(uptrain) #a little detailed version.
+
+
+#we will check for any missing values.
+sapply(uptrain, function(x) sum(is.na(x)))
+```
+
+
+
+- customer age, schooling, day of week, and profit has missing values. However missing values in profit, is an indicator that customer did not respond,therefore there was no profit earned from this customer and hence it is logical that it has missing values.
+
+
+- we also need to understand the fact that profit is dependent on the responded variable, that is "yes" response from the customer after seevral marketting resulted in a response, which would either result in positive or negative profit(negative profit is just a class to describe that there was comparative loss.), Therefore we would choose to leave "profit" variable out of our analysis consideration.
+
+
+- In general, customer age, profession, marital status, schooling account for the customer data/details on background, while defaults, home loans, housing loans, contact describe about the attributes that associate a customer to our investment company, and help understand about their behaviour and activities.
+
+
+
+- last contact month, last contact week, no. of times a customer was contacted(campaign), pdays, previous, poutcome, pmonths, pemails closely relate to the marketing and campaigning data, and informs us about whether a customer that was contacted, and the frequency at which it was done, resulted in to success or not. 
+
+
+
+- while emp.var.rate, cons.price.inx, cons.conf.inx, euribor3m, nr.employed are general employees and customer data that suggest about buying capacity of the customers, and employees employed by the company at work. 
+
+
+
+- It is interesting to look at these data, combining different segements of the our frame work, which is maximizing profit from customers.
+
+
+
+- we will deal with missing values in details in remaining section now.
+
+
+
+- In a "very general" circumstances, we would like to remove the variable rows/values that are missing. But keeping in mind that our dataset contains only around ~8k approx. data values, it would not be very logical to do so. Hence we would like to treat invidual variables that have missing values to include them in analysis. But before we do that, we would like to remove the "profit" and "id" variable from our dataset, as explained above. id is only identation and veryy redundant for our purpose.
+
+
+
+
+
+```{r}
+uptrain <- uptrain[, c(1:22)] #subsetting and leaving out last two columns. 
+#we also need to know we might further subset the data depending on our findings further. The initial stage is just suggestive.
+```
+
+
+
+
+
+- first dealing with categorical variables.
+
+
+
+- as.numeric(table(x)) in the fucntion is just the frequencies of all the unique values in x and I divide it by sum(!is.na(x)) which is the length of x without NAs. This way a vector of probabilities.
+
+
+
+```{r}
+missingvalues <- function(x){
+  sample(levels(x), sum(is.na(x)), replace = TRUE,
+         prob = as.numeric(table(x))/sum(!is.na(x)))   
+}
+
+#subsetting categorical variables with missing values, that is, schooling and day_of_week 
+cat_up <- uptrain[, c("schooling", "day_of_week")]
+#now applying function:
+cat_up[sapply(cat_up, is.na)]  <- unlist(sapply(cat_up, missingvalues))
+# a little manual work.
+uptrain["schooling"] <- cat_up["schooling"]
+uptrain["day_of_week"] <- cat_up["day_of_week"]
+```
+
+
+
+
+
+- imputing missing values in numeric variable=="custAge". imputing with mean value of the column which is 39.95373. It is usually not the best idea, but is considered apt.
+
+
+
+```{r}
+uptrain[is.na(uptrain[,"custAge"]),"custAge"] <- mean(uptrain[,"custAge"], na.rm = TRUE)
+```
+
+
+
+
+- now we don't have missing values, wwe will go ahead and explore the dataset.
+
+
+
+```{r}
+#correlation plot
+
+# for this purpose we will subset the  numeric variables first.
+
+uptrain_num <- uptrain[ , c(1,11,12,13,15:21)] 
+up.cor <- cor(uptrain_num, use="pairwise", method="pearson")
+# Order the correlations by their strength.
+ord <- order(up.cor[1,])
+up.cor <- up.cor[ord, ord]
+corrplot(up.cor, mar=c(0,0,1,0))
+up.cor
+```
+
+
+
+- we can clearly see that pmonths and pdays are very highly correlated and hence we would like to remove one of the variables from our consideration. Other than that, emp.var.rate and nr.employed are very highly correlated as well, while they are correlated with euribor3m variable as well.
+
+
+
+
+```{r}
+#our threshold for seelcting which variable to keep or remove was 0.90
+uptrain <- subset(uptrain, select = -c(pdays,nr.employed, emp.var.rate) )
+```
+
+
+
+
+
+
+```{r}
+# Principal Components Analysis (on numerics only).
+numeric <- uptrain[c(1,11,12,14:18)]
+pc <- prcomp(na.omit(numeric), scale=TRUE, center=TRUE, tol=0)
+# Show the output of the analysis.
+pc
+# Summarise the importance of the components found.
+summary(pc)
+
+#Summary shows first 6 principal components are able to explain about 94% of the variability in the dataset.
+
+# Display a plot showing the relative importance of the components.
+
+plot(pc, main="")
+title(main="Principal Components Importance")
+axis(1, at=seq(0.7, ncol(pc$rotation)*1.2, 1.2), labels=colnames(pc$rotation), lty=0)
+
+# Display a plot showing the two most principal components.
+biplot(pc, main="")
+title(main="Principal Components")
+
+```
+
+
+
+
+- for first component- pmonths, pastEmail, euribor3m, and previous, are the most important variable, that explain about 34% variability alone.
+
+
+
+
+=======================================================
+=======================================================
+
+
+
+
+
+### Normalize the dataset for final process.
+
+
+
+```{r}
+## we will normalize the dataset.
+## =============================================================================
+## Normalise Data
+## =============================================================================
+
+## Pre-process predictors
+library(caret)
+pp <- preProcess(uptrain, method = c("center", "scale", "BoxCox"))
+uptrain <- predict(pp, uptrain)
+```
+
+
+=======================================================
+=======================================================
+
+
+
+##Building the model.
+
+
+#### Divide the training available data into and traion and validation set.
+
+
+
+```{r}
+
+## 70% of the sample size
+smp_size <- floor(0.70 * nrow(uptrain))
+
+## set the seed to make your partition reproductible
+set.seed(1236789)
+train_ind <- sample(seq_len(nrow(uptrain)), size = smp_size)
+
+train <- uptrain[train_ind, ]
+test <- uptrain[-train_ind, ]
+
+```
+
+
+=======================================================
+=======================================================
+
+
+
+###Decision Tree.
+
+
+```{r}
+require(rpart, quietly=TRUE)
+
+# Reset the random number seed to obtain the same results each time.
+
+set.seed(123)
+
+# Build the Decision Tree model.
+
+rpart <- rpart(responded ~ .,
+    data=train,
+    method="class",
+    parms=list(split="information"),
+    control=rpart.control(usesurrogate=0, 
+        maxsurrogate=0))
+
+# Generate a textual view of the Decision Tree model.
+
+print(rpart)
+printcp(rpart)
+cat("\n")
+
+```
+
+
+
+### Random Forest 
+
+
+
+```{r}
+
+require(randomForest, quietly=TRUE)
+
+# Build the Random Forest model.
+
+set.seed(3459)
+rf <- randomForest(responded ~ .,
+      data=train, 
+      ntree=500,
+      mtry=4,
+      importance=TRUE,
+      na.action=na.roughfix,
+      replace=FALSE)
+
+# Generate textual output of 'Random Forest' model.
+rf
+
+# The `pROC' package implements various AUC functions.
+
+require(pROC, quietly=TRUE)
+
+# Calculate the Area Under the Curve (AUC).
+
+roc(rf$y, as.numeric(rf$predicted))
+
+# Calculate the AUC Confidence Interval.
+
+ci.auc(rf$y, as.numeric(rf$predicted))
+
+# List the importance of the variables.
+
+rn <- round(importance(rf), 2)
+rn[order(rn[,3], decreasing=TRUE),]
+
+# Plot the relative importance of the variables.
+
+varImpPlot(rf, main="")
+title(main="Variable Importance Random Forest")
+
+# Plot the error rate against the number of trees.
+
+plot(rf, main="")
+legend("topright", c("OOB", "no", "yes"), text.col=1:6, lty=1:3, col=1:3)
+title(main="Error Rates Random Forest new.csv")
+
+```
+
+
+
+
+
+### Ada Boost 
+
+
+
+```{r}
+# The `ada' package implements the boost algorithm.
+
+require(ada, quietly=TRUE)
+
+# Build the Ada Boost model.
+
+set.seed(2389)
+ada <- ada(responded ~ .,
+      data=train,
+      control=rpart.control(maxdepth=30,
+           cp=0.010000,
+           minsplit=20,
+           xval=10),
+      iter=50)
+
+# Print the results of the modelling.
+
+print(ada)
+round(ada$model$errs[ada$iter,], 2)
+
+# Plot the relative importance of the variables.
+
+varplot(ada)
+
+# Plot the error rate as we increase the number of trees.
+
+plot(ada)
+
+```
+
+
+
+### Support vector machine. 
+
+
+
+
+```{r}
+# The 'kernlab' package provides the 'ksvm' function.
+
+require(kernlab, quietly=TRUE)
+
+# Build a Support Vector Machine model.
+
+set.seed(87899)
+ksvm <- ksvm(as.factor(responded) ~ .,
+      data=train,
+      kernel="vanilladot",
+      prob.model=TRUE)
+
+# Generate a textual view of the SVM model.
+ksvm
+```
+
+
+
+### Regression model 
+
+
+
+
+```{r}
+# Build a Regression model----- Logistic model
+
+glm <- glm(responded ~ .,
+    data=train,
+    family=binomial(link="logit"))
+
+# Generate a textual view of the Linear model.
+
+print(summary(glm))
+cat(sprintf("Log likelihood: %.3f (%d df)\n",
+            logLik(glm)[1],
+            attr(logLik(glm), "df")))
+cat(sprintf("Null/Residual deviance difference: %.3f (%d df)\n",
+            glm$null.deviance-glm$deviance,
+            glm$df.null-glm$df.residual))
+cat(sprintf("Chi-square p-value: %.8f\n",
+            dchisq(glm$null.deviance-glm$deviance,
+                   glm$df.null-glm$df.residual)))
+cat(sprintf("Pseudo R-Square (optimistic): %.8f\n",
+             cor(glm$y, glm$fitted.values)))
+cat('\n==== ANOVA ====\n\n')
+print(anova(glm, test="Chisq"))
+cat("\n")
+
+```
+
+
+
+### Neural Network 
+
+
+
+```{r}
+# Build a neural network model using the nnet package.
+
+require(nnet, quietly=TRUE)
+
+# Build the NNet model.
+
+set.seed(19900)
+nnet <- nnet(as.factor(responded) ~ .,
+    data=train,
+    size=10, skip=TRUE, MaxNWts=10000, trace=FALSE, maxit=100)
+
+# Print the results of the modelling.
+
+cat(sprintf("A %s network with %d weights.\n",
+    paste(nnet$n, collapse="-"),
+    length(nnet$wts)))
+cat(sprintf("Sum of Squares Residuals: %.4f.\n",
+    sum(residuals(nnet) ^ 2)))
+print(summary(nnet))
+```
+
+
+=======================================================
+=======================================================
+
+
+### Evaluating and comparing the model performance. 
+
+
+##Confusion mAtrix
+
+###Decision tree
+
+
+```{r}
+library(ROCR)
+#Generate an Error Matrix for the Decision Tree model.
+
+pr <- predict(rpart, newdata=test, type="class")
+
+# Generate the confusion matrix showing counts.
+
+table(test$responded,pr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+
+pcme <- function(actual, cl)
+{
+  x <- table(actual, cl)
+  tbl <- cbind(round(x/length(actual), 2),
+               Error=round(c(x[1,2]/sum(x[1,]),
+                             x[2,1]/sum(x[2,])), 2))
+  names(attr(tbl, "dimnames")) <- c("Actual", "Predicted")
+  return(tbl)
+};
+pcme(test$responded, pr)
+
+# Calculate the overall error percentage.
+
+overall <- function(x)
+{
+  if (nrow(x) == 2) 
+    cat((x[1,2] + x[2,1]) / sum(x)) 
+  else
+    cat(1 - (x[1,rownames(x)]) / sum(x))
+} 
+overall(table(pr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+```
+
+
+
+
+
+###ADA Boost
+
+
+```{r}
+# Generate an Error Matrix for the Ada Boost model.
+
+adapr <- predict(ada, newdata=test)
+
+# Generate the confusion matrix showing counts.
+
+table(test$responded, adapr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+pcme(test$responded, adapr)
+
+# Calculate the overall error percentage.
+overall(table(adapr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+```
+
+
+
+
+
+###Random forest
+
+
+```{r}
+# Generate an Error Matrix for the Random Forest model.
+rfpr <- predict(rf, newdata=test)
+
+# Generate the confusion matrix showing counts.
+table(test$responded, rfpr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+pcme(test$responded, rfpr)
+
+# Calculate the overall error percentage.
+overall(table(rfpr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+```
+
+
+
+
+
+###SVM model
+
+
+
+```{r}
+# Generate an Error Matrix for the SVM model.
+svmpr <- predict(ksvm, newdata=test)
+
+# Generate the confusion matrix showing counts.
+
+table(test$responded, svmpr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+pcme(test$responded, svmpr)
+
+# Calculate the overall error percentage.
+overall(table(svmpr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+
+```
+
+
+
+
+
+###Logistic model
+
+
+```{r}
+# Generate an Error Matrix for the Linear model.
+glmpr <- as.vector(ifelse(predict(glm, type="response", newdata=test) > 0.5, "yes", "no"))
+
+# Generate the confusion matrix showing counts.
+
+table(test$responded, glmpr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+pcme(test$responded, glmpr)
+
+# Calculate the overall error percentage.
+overall(table(glmpr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+
+```
+
+
+
+
+
+###Neural Net
+
+
+```{r}
+# Generate an Error Matrix for the Neural Net model.
+
+nnpr <- predict(nnet, newdata=test, type="class")
+
+# Generate the confusion matrix showing counts.
+
+table(test$responded, nnpr,
+        dnn=c("Actual", "Predicted"))
+
+# Generate the confusion matrix showing proportions.
+pcme(test$responded, nnpr)
+
+# Calculate the overall error percentage.
+overall(table(nnpr, test$responded,  
+        dnn=c("Predicted", "Actual")))
+
+
+
+```
+
+
+=======================================================
+=======================================================
+
+
+
+##ROC Curve
+
+
+
+
+###DEcision tree
+
+
+
+```{r}
+pr <- predict(rpart, newdata=test)[,2]
+no.miss   <- na.omit(test$responded)
+miss.list <- attr(no.miss, "na.action")
+attributes(no.miss) <- NULL
+
+if (length(miss.list))
+{
+  pred <- prediction(pr[-miss.list], no.miss)
+} else
+{
+  pred <- prediction(pr, test$responded)
+}
+
+pe <- performance(pred, "tpr", "fpr")
+au <- performance(pred, "auc")@y.values[[1]]
+pd <- data.frame(fpr=unlist(pe@x.values), tpr=unlist(pe@y.values))
+p <- ggplot(pd, aes(x=fpr, y=tpr))
+p <- p + geom_line(colour="red")
+p <- p + xlab("False Positive Rate") + ylab("True Positive Rate")
+p <- p + ggtitle("ROC Curve Decision Tree")
+p <- p + theme(plot.title=element_text(size=10))
+p <- p + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+p <- p + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(au, 2)))
+print(p)
+```
+
+
+
+###ADAmodel
+
+
+
+```{r}
+adapr <- predict(ada, newdata=test, type="prob")[,2]
+if (length(miss.list))
+{
+  preda <- prediction(adapr[-miss.list], no.miss)
+} else
+{
+  preda <- prediction(adapr, no.miss)
+}
+
+ped <- performance(preda, "tpr", "fpr")
+aud <- performance(preda, "auc")@y.values[[1]]
+pdd <- data.frame(fpr=unlist(ped@x.values), tpr=unlist(ped@y.values))
+pa <- ggplot(pdd, aes(x=fpr, y=tpr))
+pa <- pa + geom_line(colour="red")
+pa <- pa + xlab("False Positive Rate") + ylab("True Positive Rate")
+pa <- pa + ggtitle("ROC Curve Ada Boost")
+pa <- pa + theme(plot.title=element_text(size=10))
+pa <- pa + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+pa <- pa + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(aud, 2)))
+print(pa)
+```
+
+
+
+###RF model
+
+
+```{r}
+rfpr <- predict(rf, newdata=test, type="prob")[,2]
+if (length(miss.list))
+{
+  pred2 <- prediction(rfpr[-miss.list], no.miss)
+} else
+{
+  pred2<- prediction(rfpr, no.miss)
+}
+
+per <- performance(pred2, "tpr", "fpr")
+aur <- performance(pred2, "auc")@y.values[[1]]
+pdr <- data.frame(fpr=unlist(per@x.values), tpr=unlist(per@y.values))
+pr <- ggplot(pdr, aes(x=fpr, y=tpr))
+pr <- pr + geom_line(colour="red")
+pr <- pr + xlab("False Positive Rate") + ylab("True Positive Rate")
+pr <- pr + ggtitle("ROC Curve Random Forest")
+pr <- pr + theme(plot.title=element_text(size=10))
+pr <- pr + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+pr <- pr + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(aur, 2)))
+print(pr)
+```
+
+
+
+###SVM Model
+
+
+
+```{r}
+svmpr <- predict(ksvm, newdata=test, type="probabilities")[,2]
+if (length(miss.list))
+{
+  preds <- prediction(svmpr[-miss.list], no.miss)
+} else
+{
+  preds <- prediction(svmpr, no.miss)
+}
+
+pes <- performance(preds, "tpr", "fpr")
+aus <- performance(preds, "auc")@y.values[[1]]
+pds <- data.frame(fpr=unlist(pes@x.values), tpr=unlist(pes@y.values))
+ps <- ggplot(pds, aes(x=fpr, y=tpr))
+ps <- ps + geom_line(colour="red")
+ps <- ps + xlab("False Positive Rate") + ylab("True Positive Rate")
+ps <- ps + ggtitle("ROC Curve SVM")
+ps <- ps + theme(plot.title=element_text(size=10))
+ps <- ps + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+ps <- ps + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(aus, 2)))
+print(ps)
+```
+
+
+
+
+###Logistic model
+
+
+```{r}
+glmpr <- predict(glm, type="response", newdata=test)
+if (length(miss.list))
+{
+  predg <- prediction(glmpr[-miss.list], no.miss)
+} else
+{
+  predg <- prediction(glmpr, no.miss)
+}
+
+peg <- performance(predg, "tpr", "fpr")
+aug <- performance(predg, "auc")@y.values[[1]]
+pdg <- data.frame(fpr=unlist(peg@x.values), tpr=unlist(peg@y.values))
+pg <- ggplot(pdg, aes(x=fpr, y=tpr))
+pg <- pg + geom_line(colour="red")
+pg <- pg + xlab("False Positive Rate") + ylab("True Positive Rate")
+pg <- pg + ggtitle("ROC Curve Logistic")
+pg <- pg + theme(plot.title=element_text(size=10))
+pg <- pg + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+pg <- pg + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(aug, 2)))
+print(pg)
+
+
+```
+
+
+
+
+###NNET
+
+
+
+```{r}
+nnetpr <- predict(nnet, newdata=test)
+if (length(miss.list))
+{
+  prednr <- prediction(nnetpr[-miss.list], no.miss)
+} else
+{
+  prednr <- prediction(nnetpr, no.miss)
+}
+
+penr <- performance(prednr, "tpr", "fpr")
+aunr <- performance(prednr, "auc")@y.values[[1]]
+pdnr <- data.frame(fpr=unlist(penr@x.values), tpr=unlist(penr@y.values))
+pnr <- ggplot(pdnr, aes(x=fpr, y=tpr))
+pnr <- pnr + geom_line(colour="red")
+pnr <- pnr + xlab("False Positive Rate") + ylab("True Positive Rate")
+pnr <- pnr + ggtitle("ROC Curve Neural Net")
+pnr <- pnr + theme(plot.title=element_text(size=10))
+pnr <- pnr + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+pnr <- pnr + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(aunr, 2)))
+print(pnr)
+
+```
+
+=======================================================
+=======================================================
+
+
+
+#### Model selection.
+
+> Based on combined result from AUC/ROC and error rate/confusion matrix we could safely  say Adaptive boosting with overall error percentage of only 0.09546926 and AUC value of 78, performed well on our dataset in comparison to other models we worked with.
+
+
+
+=======================================================
+=======================================================
+
+#### Reading new test datatset and predicting the class it data belongs to.
+
+
+
+```{r}
+#reading test
+uptest <- read.csv("testingCandidate.csv")
+#checking for missing values.
+sapply(uptest, function(x) sum(is.na(x)))
+
+##using similar procedure that we did with training set.
+
+#subsetting categorical variables with missing values, that is, schooling and day_of_week 
+cat_uptest <- uptest[, c("schooling", "day_of_week")]
+
+#now applying function:
+cat_uptest[sapply(cat_uptest, is.na)]  <- unlist(sapply(cat_uptest, missingvalues))
+
+
+# a little manual work again!
+uptest["schooling"] <- cat_uptest["schooling"]
+uptest["day_of_week"] <- cat_uptest["day_of_week"]
+
+#imputing missing values in numeric variable=="custAge". imputing with mean value of the column which is 39.95373. It is usually not the best idea, but is considered apt.
+uptest[is.na(uptest[,"custAge"]),"custAge"] <- mean(uptest[,"custAge"], na.rm = TRUE)
+uptest <- subset(uptest, select = -c(pdays,nr.employed, emp.var.rate) )
+pptest <- preProcess(uptest, method = c("center", "scale", "BoxCox"))
+uptest <- predict(pptest, uptest)
+
+#using the training model to predict the class.
+adanew <- predict(ada, newdata=uptest)
+
+#submitting.
+submit <- data.frame( uptest, responded = adanew)
+head(submit)
+
+
+#write.csv(submit, file = "testingCandidatenew.csv", row.names = FALSE)
+
+```
