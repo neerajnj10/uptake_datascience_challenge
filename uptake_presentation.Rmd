@@ -83,8 +83,7 @@ ggplot(r, aes(responded)) + geom_bar(position= "stack")
 - We have noticed few other variables that must be considered important while wanting to market the target group, one of the most important however is, **previous** (no. of contacts performed before this campaign and for this client), which has been confirmed by our model as well. 
 - Benfordd explains *What proportion of the data points start with 1? How about 2? Or 3 through to 9?* In our case, previous variable is a single digit. So when 70% of the contacts performed were 1 then customers responded with **yes**, and when around 87% of the contacts performed were 1, then customers responded with **no**, however we see when at least 24% of the contacts performed were 2 in number, then then it resulted in customer responding **yes** in comparison to only 12% approx in favor of **no**
 
-![benford](benford.png)
-
+![benford](https://cloud.githubusercontent.com/assets/11197322/12204067/0a7c9820-b600-11e5-9bfc-de52f21403d4.png)
 
 
 - Another noticeable variable is **poutcome** which is outcome of the previous marketing campaign, which shows that for non-existent past campaign, it generally resulted in response from customer to be **no**, as no previous marketing would mean we did not learn about them before, and therefore did not customize our strategies. For those that resulted in success in past, 3/4th of that effort allowed and contributed towards respondants willing to purchase the product. This could give us indication, that continuous marketing and campaigning is a good contributor to our success and should be carried on.
@@ -103,7 +102,7 @@ mosaicplot(ds[ord,], main="Mosaic of poutcome by responded", color=colorspace::r
 
 - This can be further confirmed from model, which was built upon the variables noted below, with their **importance** in prediction in decreasing order.
 
-![ADA-Model](ada.png)
+![ada](https://cloud.githubusercontent.com/assets/11197322/12204060/08202182-b600-11e5-9151-ccbbef4163b9.png)
 
 
 ## Further Data Understanding (more visualizations!!)
@@ -136,7 +135,8 @@ ggplot(r, aes(x=pastEmail,y=profit)) + geom_point(position=position_jitter(w=0.1
 
 - How does our final prediction on whether from group of potential customer, how many are worth spending money on, or carrying out marketing for our product/policy, is shown below.
 
-![ROC-ADA](roc.png)
+![roc](https://cloud.githubusercontent.com/assets/11197322/12204075/1122ae80-b600-11e5-83ef-98848abcad11.png)
+
 
 ```
       custAge  profession  marital           schooling default housing loan  contact month
